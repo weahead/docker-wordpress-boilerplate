@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+cd ${WORDPRESS_DEST}
+
 if [[ "$1" == apache2* ]] || [ "$1" == php-fpm ]; then
 	: "${WORDPRESS_DB_HOST:=mysql}"
 	# if we're linked to MySQL and thus have credentials already, let's use them
@@ -53,7 +55,7 @@ if [[ "$1" == apache2* ]] || [ "$1" == php-fpm ]; then
 	sed -ri 's/\r\n|\r/\n/g' wp-config*
 
 	if [ ! -e wp-config.php ]; then
-		awk '/^\/\*.*stop editing.*\*\/$/ && c == 0 { c = 1; system("cat") } { print }' wp-config-sample.php > wp-config.php <<'EOPHP'
+		awk '/^\/\*.*stop editing.*\*\/$/ && c == 0 { c = 1; system("cat") } { print }' wp-config-sample.php > wp-config-base.php <<'EOPHP'
 // If we're behind a proxy server and using HTTPS, we need to alert Wordpress of that fact
 // see also http://codex.wordpress.org/Administration_Over_SSL#Using_a_Reverse_Proxy
 if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
@@ -61,7 +63,7 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROT
 }
 
 EOPHP
-		chown www-data:www-data wp-config.php
+		chown www-data:www-data wp-config-base.php
 	fi
 
 	# see http://stackoverflow.com/a/2705678/433558
@@ -84,7 +86,7 @@ EOPHP
 			start="^(\s*)$(sed_escape_lhs "$key")\s*="
 			end=";"
 		fi
-		sed -ri "s/($start\s*).*($end)$/\1$(sed_escape_rhs "$(php_escape "$value" "$var_type")")\3/" wp-config.php
+		sed -ri "s/($start\s*).*($end)$/\1$(sed_escape_rhs "$(php_escape "$value" "$var_type")")\3/" wp-config-base.php
 	}
 
 	set_config 'DB_HOST' "$WORDPRESS_DB_HOST"
@@ -110,7 +112,7 @@ EOPHP
 			set_config "$unique" "$unique_value"
 		else
 			# if not specified, let's generate a random value
-			current_set="$(sed -rn "s/define\((([\'\"])$unique\2\s*,\s*)(['\"])(.*)\3\);/\4/p" wp-config.php)"
+			current_set="$(sed -rn "s/define\((([\'\"])$unique\2\s*,\s*)(['\"])(.*)\3\);/\4/p" wp-config-base.php)"
 			if [ "$current_set" = 'put your unique phrase here' ]; then
 				set_config "$unique" "$(head -c1M /dev/urandom | sha1sum | cut -d' ' -f1)"
 			fi
@@ -155,5 +157,7 @@ if (!$mysql->query('CREATE DATABASE IF NOT EXISTS `' . $mysql->real_escape_strin
 $mysql->close();
 EOPHP
 fi
+
+cd -
 
 exec "$@"
