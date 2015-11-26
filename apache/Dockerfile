@@ -36,9 +36,10 @@ COPY docker-entrypoint.sh /entrypoint.sh
 
 COPY wp-content ${WORDPRESS_CONTENT}
 
-COPY .htaccess wp-config.php ${TARGET_DIR}/
-
 RUN chown -R www-data:www-data ${TARGET_DIR}
+
+# Do not let WordPress edit this .htaccess and wp-config.php
+COPY .htaccess wp-config.php ${TARGET_DIR}/
 
 VOLUME ${WORDPRESS_CONTENT}
 
